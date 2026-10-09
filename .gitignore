@@ -1,0 +1,31 @@
+# ---- EEG data (never commit — files are hundreds of MB to GB) ----
+*.set
+*.fdt
+*.edf
+*.bdf
+*.vhdr
+*.eeg
+*.vmrk
+*.mat
+data/*
+!data/README.md
+
+# Subject folders and pipeline outputs
+SOMA*/
+preprocessed_data*/
+results*/
+Results/
+*.fig
+*.csv
+
+# ---- MATLAB ----
+*.asv
+*.m~
+*.mex*
+slprj/
+codegen/
+
+# ---- OS / Google Drive ----
+desktop.ini
+.DS_Store
+Thumbs.db

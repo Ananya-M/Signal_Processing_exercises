@@ -1,157 +1,126 @@
 clc; clear;
-
-%% ========== PATHS & SUBJECT LIST =======================================
-root_dir = 'D:\SOMA_data\final_preprocessed_datasets';
-
-subjects_to_process = ...
-    {'SOMA003'}%,'SOMA004'};
-%,'SOMA006','SOMA010','SOMA012','SOMA013',...
-%     'SOMA014','SOMA015','SOMA017','SOMA019','SOMA022','SOMA023',...
-%     'SOMA024','SOMA025','SOMA026','SOMA027','SOMA028','SOMA030',...
-%     'SOMA031','SOMA032','SOMA033','SOMA034','SOMA035'};
-
-%% ========== FIND SUBJECT FILES =========================================
-subj_dirs = dir(root_dir);
-subj_dirs = subj_dirs(~[subj_dirs.isdir]);
-subj_dirs = subj_dirs(contains({subj_dirs.name}, '.set'));
-if ~isempty(subjects_to_process)
-    subj_dirs = subj_dirs(contains({subj_dirs.name}, subjects_to_process));
-end
-fprintf('Files to process: %d\n\n', numel(subj_dirs));
-
 %% ========== MAIN LOOP ==================================================
 
 
 tic;
+subject_id="Sample_data";
 SUBJECT = struct();
 
-for k = 1%:numel(subj_dirs)
+data_dir = 'path/to/Sample_data';   % TODO: folder containing Sample_data.set and Sample_data.fdt
+EEG = pop_loadset('Sample_data.set', data_dir);
+EEG = eeg_checkset(EEG);
+Fs  = EEG.srate;
+first_protocol=fieldnames(EEG.protocoldata.Trigger_13);
+first_protocol=first_protocol{1};
+fp=matlab.lang.makeValidName(first_protocol);
 
-    if ~contains(subj_dirs(k).name, 'badtrial', 'IgnoreCase', true)
-        continue
+time=EEG.times;
+idx_10  = round(interp1(time, 1:length(time), 10));
+idx_175 = round(interp1(time, 1:length(time), 175));
+
+EEG.protocoldata.Trigger_13.Global_pre.baseline=EEG.protocoldata.Trigger_13.(fp).pre;
+EEG.protocoldata.Trigger_14.Global_pre.baseline=EEG.protocoldata.Trigger_14.(fp).pre;
+protocols = fieldnames(EEG.protocoldata.Trigger_13);
+protocols = ["Global_pre"; protocols(1:end)];
+protocols(end) = [];
+
+sides = {'Trigger_13', 'Trigger_14'};
+
+for si = 1%:numel(sides)
+    side = sides{si};
+
+    if strcmp(side, 'Trigger_13')
+        group    = 'Task';
+        channels = {'C4','CP2','CP6'};
+    else
+        group    = 'CONTROL';
+        channels = {'C3','CP1','CP5'};
     end
 
-    fprintf('\nLoading: %s\n', subj_dirs(k).name);
-    subject_id = regexp(subj_dirs(k).name, 'SOMA\d{3}', 'match', 'once');
-    if isempty(subject_id)
-        fprintf('   Could not extract subject ID. Skipping.\n');
-        continue
-    end
+    for p = 2%:numel(protocols)
+        prot = protocols{p};
 
-    %EEG = pop_loadset(subj_dirs(k).name, subj_dirs(k).folder);
-    EEG = eeg_checkset(EEG);
-    Fs  = EEG.srate;
-    first_protocol=fieldnames(EEG.sonication_description);
-    first_protocol=first_protocol{1};
-    fp=matlab.lang.makeValidName(first_protocol);
+        for ci = 3 %1:numel(channels)
+            chan = channels{ci};
 
-    time=EEG.times;
-    idx_10  = round(interp1(time, 1:length(time), 10));
-    idx_175 = round(interp1(time, 1:length(time), 125));
+            %% --- 1. RAW EPOCH MATRICES ----------------------------
+            GB = EEG.protocoldata.(side).(prot).pre.(chan);
+            if size(GB, 2) > 300
+                GB = GB(idx_10:idx_175, end-200:end);
+            end
 
-    EEG.protocoldata.left_mn.Global_baseline.baseline=EEG.protocoldata.left_mn.(fp).baseline;
-    EEG.protocoldata.right_mn.Global_baseline.baseline=EEG.protocoldata.right_mn.(fp).baseline;
-    protocols = fieldnames(EEG.protocoldata.left_mn);
-    protocols = ["Global_baseline"; protocols(1:end)];
-    protocols(end) = [];
+            LB = EEG.protocoldata.(side).(prot).pre.(chan);
 
-    sides = {'left_mn', 'right_mn'};
-
-    for si = 2%1:numel(sides)
-        side = sides{si};
-
-        if strcmp(side, 'left_mn')
-            group    = 'LIFU';
-            channels = {'C4','CP2','CP6'};
-        else
-            group    = 'CONTROL';
-            channels = {'C3','CP1','CP5'};
-        end
-
-        for p = 1:numel(protocols)
-            prot = protocols{p};
-
-            for ci = 1%1:numel(channels)
-                chan = channels{ci};
-
-                %% --- 1. RAW EPOCH MATRICES ----------------------------
-                GB = EEG.protocoldata.(side).(prot).baseline.(chan);
-                if size(GB, 2) > 300
-                    GB = GB(idx_10:idx_175, end-200:end);
-                end
-
-                LB = EEG.protocoldata.(side).(prot).baseline.(chan);
-                
-                if p==2
+            if p==2
                 LB = LB(idx_10:idx_175, end-110:end);
-                else
-                LB = LB(idx_10:idx_175, :);  
-                end
-                
-                % Before calling compute_wiener_filter, add:
-                figure;
-                subplot(2,1,1); imagesc(LB'); colorbar; title('LB raw trials [N x T]');
-                subplot(2,1,2); plot(nanmean(LB,2)); title('ERP template d[n]');
+            else
+                LB = LB(idx_10:idx_175, :);
+            end
 
-                %% --- 2. CONVENTIONAL ERPs -----------------------------
-                ERP_gb_uV = nanmean(GB, 2);
-                ERP_lb_uV = nanmean(LB, 2);
-                
+            % Before calling compute_wiener_filter, add:
+            figure;
+            subplot(2,1,1); imagesc(LB'); colorbar; title('local pre raw trials [N x T]');
+            subplot(2,1,2); plot(nanmean(LB,2)); title('ERP template d[n]');
 
-                %% --- 3. WIENER FILTER (fully frequency-domain) --------
-                [H_w, h_w, Sdd, Svv, f_axis] = compute_wiener_filter(LB, Fs,time(idx_10:idx_175));
+            %% --- 2. CONVENTIONAL ERPs -----------------------------
+            ERP_gb_uV = nanmean(GB, 2);
+            ERP_lb_uV = nanmean(LB, 2);
 
-                LB_wiener = apply_wiener_epoch(LB, H_w);
-                ERP_lb_w = nanmean(LB_wiener, 2);
-                resid_power_lb = mean((LB_wiener - ERP_lb_w).^2, 'all', 'omitnan');
-                
-                
-                if ~strcmp(prot,'Global_baseline')
-        
-                    PS = EEG.protocoldata.(side).(prot).postsonication.(chan);
-                    PS = PS(idx_10:idx_175, :);
-                    ERP_ps_uV = nanmean(PS, 2);
-                    PS_wiener = apply_wiener_epoch(PS, H_w);
-                    ERP_ps_w = nanmean(PS_wiener, 2);
-                    resid_power_ps = mean((PS_wiener - ERP_ps_w).^2, 'all', 'omitnan');
-                end
 
-                %% --- 4. STORE -----------------------------------------
-                tag = sprintf('%s__%s__%s__%s', subject_id, group, prot, chan);
+            %% --- 3. WIENER FILTER (fully frequency-domain) --------
+            [H_w, h_w, Sdd, Svv, f_axis] = compute_wiener_filter(LB, Fs,time(idx_10:idx_175));
 
-                SUBJECT.(tag).subject_id     = subject_id;
-                SUBJECT.(tag).group          = group;
-                SUBJECT.(tag).protocol       = prot;
-                SUBJECT.(tag).channel        = chan;
-                SUBJECT.(tag).ERP_gb_uV      = ERP_gb_uV;
-                SUBJECT.(tag).ERP_lb_uV      = ERP_lb_uV;
-                SUBJECT.(tag).ERP_lb_wiener  = ERP_lb_w;
-                SUBJECT.(tag).wiener_H       = H_w;
-                SUBJECT.(tag).wiener_h       = h_w;
-                SUBJECT.(tag).wiener_Sdd     = Sdd;
-                SUBJECT.(tag).wiener_Svv     = Svv;
-                SUBJECT.(tag).wiener_f       = f_axis;
-                SUBJECT.(tag).resid_power_lb = resid_power_lb;
-                
+            LB_wiener = apply_wiener_epoch(LB, H_w);
+            ERP_lb_w = nanmean(LB_wiener, 2);
+            resid_power_lb = mean((LB_wiener - ERP_lb_w).^2, 'all', 'omitnan');
 
-                if ~strcmp(prot,'Global_baseline')
-                    SUBJECT.(tag).ERP_ps_uV      = ERP_ps_uV;
-                    SUBJECT.(tag).ERP_ps_wiener  = ERP_ps_w;
-                    SUBJECT.(tag).resid_power_ps = resid_power_ps;
 
-                 if strcmp(group, "LIFU") && strcmp(prot, "Cain")|| strcmp(prot, "Rezai") && strcmp(chan, "C3")
+            if ~strcmp(prot,'Global_pre')
+
+                PS = EEG.protocoldata.(side).(prot).post.(chan);
+                PS = PS(idx_10:idx_175, :);
+                ERP_ps_uV = nanmean(PS, 2);
+                PS_wiener = apply_wiener_epoch(PS, H_w);
+                ERP_ps_w = nanmean(PS_wiener, 2);
+                resid_power_ps = mean((PS_wiener - ERP_ps_w).^2, 'all', 'omitnan');
+            end
+
+            %% --- 4. STORE -----------------------------------------
+            tag = sprintf('%s__%s__%s__%s', subject_id, group, prot, chan);
+
+            SUBJECT.(tag).subject_id     = subject_id;
+            SUBJECT.(tag).group          = group;
+            SUBJECT.(tag).protocol       = prot;
+            SUBJECT.(tag).channel        = chan;
+            SUBJECT.(tag).ERP_gb_uV      = ERP_gb_uV;
+            SUBJECT.(tag).ERP_lb_uV      = ERP_lb_uV;
+            SUBJECT.(tag).ERP_lb_wiener  = ERP_lb_w;
+            SUBJECT.(tag).wiener_H       = H_w;
+            SUBJECT.(tag).wiener_h       = h_w;
+            SUBJECT.(tag).wiener_Sdd     = Sdd;
+            SUBJECT.(tag).wiener_Svv     = Svv;
+            SUBJECT.(tag).wiener_f       = f_axis;
+            SUBJECT.(tag).resid_power_lb = resid_power_lb;
+
+
+            if ~strcmp(prot,'Global_pre')
+                SUBJECT.(tag).ERP_ps_uV      = ERP_ps_uV;
+                SUBJECT.(tag).ERP_ps_wiener  = ERP_ps_w;
+                SUBJECT.(tag).resid_power_ps = resid_power_ps;
+
+                if strcmp(group, "Task") && strcmp(prot, "ProtocolC")|| strcmp(prot, "ProtocolR") && strcmp(chan, "CP6")
                     plot_wiener_summary(EEG.times(idx_10:idx_175), ...
-                    ERP_lb_uV, ERP_ps_uV, ...
-                    ERP_lb_w,  ERP_ps_w, ...
-                    h_w, Sdd, Svv, f_axis, Fs, ...
-                    resid_power_lb, resid_power_ps, tag);
-                 end
+                        ERP_lb_uV, ERP_ps_uV, ...
+                        ERP_lb_w,  ERP_ps_w, ...
+                        h_w, Sdd, Svv, f_axis, Fs, ...
+                        resid_power_lb, resid_power_ps, tag);
                 end
-               
-            end % channel
-        end % protocol
-    end % side
-end % subject
+            end
+
+        end % channel
+    end % protocol
+end % side
+
 
 toc;
 fprintf('\nDone.\n');
@@ -253,7 +222,7 @@ function [H, h, Sdd, Svv, f_axis] = compute_wiener_filter(LB, Fs, time)
     %% ── Step 8: Cosine taper ─────────────────────────────────────────────
     % Tapers H smoothly to zero at the preprocessing bandpass edges.
     % Avoids the sharp spectral discontinuity that causes Gibbs ringing
-    % in the impulse response (the 20 ms sinusoid you saw in Panel 4).
+    % in the impulse response
     %
     % Low-frequency taper: DC to f_low_zero (removes drift)
     % High-frequency taper: f_high_start → f_high_zero (matches 50 Hz LP)
@@ -266,23 +235,23 @@ function [H, h, Sdd, Svv, f_axis] = compute_wiener_filter(LB, Fs, time)
     taper = ones(T, 1);
 
     % %% Low-frequency: hard zero below f_low_zero
-    % taper(f_axis < f_low_zero) = 0;
-    % % Mirror: negative frequencies above Fs - f_low_zero
-    % taper(f_axis > (Fs - f_low_zero)) = 0;
-    % 
+    taper(f_axis < f_low_zero) = 0;
+    % Mirror: negative frequencies above Fs - f_low_zero
+    taper(f_axis > (Fs - f_low_zero)) = 0;
+
     % %% High-frequency cosine taper — positive side
-    % idx_hi = f_axis >= f_high_start & f_axis <= f_high_zero;
-    % taper(idx_hi) = 0.5 * (1 + cos(pi * ...
-    %     (f_axis(idx_hi) - f_high_start) / (f_high_zero - f_high_start)));
+    idx_hi = f_axis >= f_high_start & f_axis <= f_high_zero;
+    taper(idx_hi) = 0.5 * (1 + cos(pi * ...
+        (f_axis(idx_hi) - f_high_start) / (f_high_zero - f_high_start)));
     % 
     % %% Hard zero between f_high_zero and Fs - f_high_zero (both sides zeroed)
-    % idx_zero = f_axis > f_high_zero & f_axis < (Fs - f_high_zero);
-    % taper(idx_zero) = 0;
+    idx_zero = f_axis > f_high_zero & f_axis < (Fs - f_high_zero);
+    taper(idx_zero) = 0;
     % 
     % %% High-frequency cosine taper — negative side (mirror)
-    % idx_neg = f_axis >= (Fs - f_high_zero) & f_axis <= (Fs - f_high_start);
-    % taper(idx_neg) = 0.5 * (1 + cos(pi * ...
-    %     ((Fs - f_axis(idx_neg)) - f_high_start) / (f_high_zero - f_high_start)));
+    idx_neg = f_axis >= (Fs - f_high_zero) & f_axis <= (Fs - f_high_start);
+    taper(idx_neg) = 0.5 * (1 + cos(pi * ...
+        ((Fs - f_axis(idx_neg)) - f_high_start) / (f_high_zero - f_high_start)));
 
     %% Apply taper
     H = H_smooth .* taper;   % [T x 1], real, in [0,1]
@@ -365,13 +334,13 @@ function plot_wiener_summary(times, ...
     %% Panel 1 — ERP waveforms
     subplot(2, 2, 1);
     plot(times, ERP_lb_raw, 'Color', [0.6 0.6 0.6],   'LineWidth', 1.2, ...
-         'DisplayName', 'Baseline (raw)');     hold on;
+         'DisplayName', 'Pre (raw)');     hold on;
     plot(times, ERP_ps_raw, 'Color', [0.85 0.33 0.10], 'LineWidth', 1.2, ...
-         'DisplayName', 'Post-son (raw)');
+         'DisplayName', 'Post (raw)');
     plot(times, ERP_lb_w,   'Color', [0.18 0.55 0.34], 'LineWidth', 1.8, ...
-         'LineStyle', '--', 'DisplayName', 'Baseline (Wiener)');
+         'LineStyle', '--', 'DisplayName', 'Pre (Wiener)');
     plot(times, ERP_ps_w,   'Color', [0.49 0.18 0.56], 'LineWidth', 1.8, ...
-         'LineStyle', '--', 'DisplayName', 'Post-son (Wiener)');
+         'LineStyle', '--', 'DisplayName', 'Post (Wiener)');
     xline(0, 'k:', 'LineWidth', 0.8);
     yline(0, 'Color', [0.7 0.7 0.7]);
     xlabel('Time (ms)');  ylabel('\muV');
@@ -425,7 +394,7 @@ function plot_wiener_summary(times, ...
     grid on;  box off;
 
     annotation(fig, 'textbox', [0.72 0.01 0.26 0.06], ...
-        'String', sprintf('Resid power — BS: %.4f  |  PS: %.4f  µV²', ...
+        'String', sprintf('Resid power — Pre: %.4f  |  Post: %.4f  µV²', ...
                           resid_lb, resid_ps), ...
         'FitBoxToText', 'on', 'EdgeColor', 'none', ...
         'FontSize', 7, 'HorizontalAlignment', 'center');
