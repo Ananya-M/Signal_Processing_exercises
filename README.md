@@ -1,6 +1,6 @@
-# Signal Processing Exercises
+# EEG Signal Processing to try out things that I didn't in my pipeline?
 
-Hands-on MATLAB exercises in signal processing for EEG, built around somatosensory evoked potentials (SSEPs). Each exercise has its own folder with a script and a README covering the theory, how the pipeline is built, common mistakes and how to read the results.
+MATLAB exercises(for now) in signal processing for EEG, built around somatosensory evoked potentials (SSEPs). Each exercise has its own folder with a script and a README covering the theory, how the script is built, some outputs that I got and what I think about them.
 
 ## Exercises
 
