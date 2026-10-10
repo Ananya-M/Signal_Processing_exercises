@@ -6,8 +6,18 @@ tic;
 subject_id="Sample_data";
 SUBJECT = struct();
 
-data_dir = 'path/to/Sample_data';   % TODO: folder containing Sample_data.set and Sample_data.fdt
-EEG = pop_loadset('Sample_data.set', data_dir);
+% Sample_data/ lives at the repository root (shared by all exercises).
+% Running the whole script: mfilename gives this file's folder -> go up two levels.
+% Running a selection: mfilename is empty -> fall back to the current folder.
+script_dir = fileparts(mfilename('fullpath'));
+data_dir   = fullfile(script_dir, '..', '..', 'Sample_data');
+if isempty(script_dir) || ~isfolder(data_dir)
+    data_dir = fullfile(pwd, 'Sample_data');
+end
+if ~isfolder(data_dir)
+    error('Sample_data folder not found. Put it in the repository root, or set data_dir by hand.');
+end
+EEG = pop_loadset('Sample_data_wiener.set', data_dir);
 EEG = eeg_checkset(EEG);
 Fs  = EEG.srate;
 first_protocol=fieldnames(EEG.protocoldata.Trigger_13);

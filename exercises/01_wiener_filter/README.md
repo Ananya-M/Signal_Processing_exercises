@@ -273,7 +273,7 @@ Please email me if you want to try this exercise on a sample dataset
 
 **Requirements:** MATLAB (Signal Processing Toolbox for `hann`) and [EEGLAB](https://sccn.ucsd.edu/eeglab/) on the path.
 
-1. Request the sample dataset (`Sample_data.set` + `Sample_data.fdt`) — see [Dataset access](#8-dataset-access).
-2. Open [wiener_filter_ssep.m](wiener_filter_ssep.m) and set `data_dir` to the folder containing the dataset.
+1. Request the sample dataset (`Sample_data_wiener.set` + `Sample_data_wiener.fdt`) — see [Dataset access](#8-dataset-access).
+2. Put both files in a `Sample_data/` folder at the **repository root**, or change `data_dir` at the top of [wiener_filter_ssep.m](wiener_filter_ssep.m). The script finds the folder both when you run the whole file and when you run a selection with MATLAB's current folder set to the repository root.
 3. Run the script. It produces the four-panel diagnostic figure shown in [Section 5](#5-diagnostic-checklist).
 4. Use the diagnostic checklist to judge the result, then try changing the parameters in [Section 6](#6-key-parameters) (epoch window, smoothing σ, taper edges) and see how each panel responds.

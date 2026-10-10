@@ -7,7 +7,7 @@ MATLAB exercises(for now) in signal processing for EEG, built around somatosenso
 | # | Exercise | Topics | Status |
 |---|---|---|---|
 | 01 | [Wiener filter](exercises/01_wiener_filter/) | Frequency-domain Wiener filter, PSD estimation, Wiener-Khinchin, spectral tapering, impulse response diagnostics | Available |
-| 02 | Adaptive filtering (LMS) | Removing ECG artifacts from continuous EEG with NLMS | Coming soon |
+| 02 | [Adaptive filtering (LMS)](exercises/02_adaptive_filtering_lms/) | Removing ECG artifacts from continuous EEG with NLMS, R-peak/stimulus phase-locking (Rayleigh test) | Available |
 | 03 | Surface Laplacian | Spherical-spline surface Laplacian vs. conventional re-referencing | Coming soon |
 
 ## Repository structure
@@ -15,10 +15,16 @@ MATLAB exercises(for now) in signal processing for EEG, built around somatosenso
 ```
 Signal_Processing_exercises/
 ├── README.md                  ← you are here
+├── setup_paths.m              ← adds utils/ to the MATLAB path
+├── utils/                     ← shared helper functions
 └── exercises/
-    └── 01_wiener_filter/
-        ├── README.md          ← theory, pitfalls, diagnostic checklist
-        ├── wiener_filter_ssep.m
+    ├── 01_wiener_filter/
+    │   ├── README.md          ← theory, pitfalls, diagnostic checklist
+    │   ├── wiener_filter_ssep.m
+    │   └── images/
+    └── 02_adaptive_filtering_lms/
+        ├── README.md          ← LMS/NLMS theory, filter design, phase-locking check
+        ├── nlms_ekg_removal.m
         └── images/
 ```
 
@@ -29,7 +35,8 @@ Signal_Processing_exercises/
    ```
    git clone https://github.com/Ananya-M/Signal_Processing_exercises.git
    ```
-3. Choose an exercise and read its README before running the script.
+3. In MATLAB, run `setup_paths` from the repository root.
+4. Choose an exercise and read its README before running the script.
 
 ## Data
 
